@@ -1,0 +1,21 @@
+name: modern_small
+model:
+  architecture: modern_decoder
+  vocab_size: 64
+  context_length: 8
+  d_model: 32
+  num_layers: 2
+  num_heads: 4
+  num_kv_heads: 2
+  d_ff: 64
+  tie_embeddings: true
+  norm_type: rmsnorm
+  activation: swiglu
+  ffn_type: swiglu
+  attention_type: gqa
+  position_encoding: rope
+  qk_norm: true
+training:
+  batch_size: 2
+  dtype: float32
+  device: cpu

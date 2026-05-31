@@ -1,0 +1,32 @@
+name: deepseek_v4_small
+model:
+  architecture: deepseek_v4
+  vocab_size: 64
+  context_length: 8
+  d_model: 32
+  num_layers: 4
+  num_heads: 4
+  num_kv_heads: 1
+  d_ff: 32
+  expert_d_ff: 32
+  tie_embeddings: true
+  norm_type: rmsnorm
+  activation: swiglu
+  ffn_type: moe
+  attention_type: hybrid
+  position_encoding: rope
+  partial_rotary_factor: 0.5
+  qk_norm: true
+  local_window: 4
+  num_experts: 4
+  active_experts: 2
+  shared_experts: 1
+  router_score: sqrtsoftplus
+  residual_streams: 2
+  compressed_topk: 2
+  compression_ratio: 2
+  mtp_layers: 1
+training:
+  batch_size: 2
+  dtype: float32
+  device: cpu
