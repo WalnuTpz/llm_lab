@@ -48,9 +48,14 @@ uv run python scripts/train_tokenizer.py \
   --output-dir data/tokenizers/bpe_16k \
   --vocab-size 16384 \
   --name openwebtext_bpe_16k \
+  --backend tokenizers \
   --jsonl-field text \
   --max-chars 200000000
 ```
+
+`tokenizers` 是默认 backend，使用 HuggingFace Rust 实现。项目内纯 Python BPE
+实现仍然保留，可用 `--backend python` 做小样本调试或学习用途，但不建议作为
+OpenWebText 正式训练默认路径。
 
 生成文件：
 

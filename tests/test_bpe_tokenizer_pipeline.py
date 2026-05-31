@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import yaml
 
 from llm_lab.data import ByteLevelBPETokenizer, train_byte_level_bpe
 
@@ -54,6 +55,10 @@ def test_train_and_tokenize_dataset_scripts(tmp_path: Path):
         check=True,
     )
 
+    config = yaml.safe_load((tokenizer_dir / "tokenizer_config.yaml").read_text(encoding="utf-8"))
+    assert config["backend"] == "tokenizers"
+    assert config["type"] == "huggingface_byte_level_bpe"
+
     output_path = tmp_path / "tokens.npy"
     subprocess.run(
         [
@@ -79,6 +84,34 @@ def test_train_and_tokenize_dataset_scripts(tmp_path: Path):
     assert len(tokens) > 0
     assert int(tokens.max()) < tokenizer.vocab_size
     assert int((tokens == tokenizer.eot_token_id).sum()) == len(rows)
+
+
+def test_train_tokenizer_script_python_backend(tmp_path: Path):
+    raw_path = tmp_path / "sample.txt"
+    raw_path.write_text(_training_text(), encoding="utf-8")
+    tokenizer_dir = tmp_path / "python_tokenizer"
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/train_tokenizer.py",
+            "--input",
+            str(raw_path),
+            "--output-dir",
+            str(tokenizer_dir),
+            "--vocab-size",
+            "320",
+            "--backend",
+            "python",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+
+    config = yaml.safe_load((tokenizer_dir / "tokenizer_config.yaml").read_text(encoding="utf-8"))
+    assert config["type"] == "byte_level_bpe"
+    tokenizer = ByteLevelBPETokenizer.load(tokenizer_dir)
+    assert tokenizer.decode(tokenizer.encode("hello 世界")) == "hello 世界"
 
 
 def _training_text() -> str:

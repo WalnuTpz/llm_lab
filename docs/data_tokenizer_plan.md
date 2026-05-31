@@ -10,6 +10,7 @@
 
 ```text
 type: byte-level BPE
+default training backend: HuggingFace tokenizers
 vocab_size: 16384
 special_tokens:
   <|endoftext|>: 16383
@@ -21,8 +22,9 @@ special_tokens:
 - 16k vocab 与四个 100M-scale 模型配置一致，不会显著改变 embedding 参数量。
 - 四个模型必须共享同一个 tokenizer，避免 tokenizer 差异污染架构对比。
 
-项目中的 `ByteTokenizer` 继续保留，只用于 smoke tests 和极小调试。正式实验使用
-`ByteLevelBPETokenizer`。
+项目中的 `ByteTokenizer` 继续保留，只用于 smoke tests 和极小调试。正式实验默认
+使用 HuggingFace `tokenizers` 的 Rust backend 训练 byte-level BPE；项目内的纯
+Python BPE 实现继续保留为参考实现和 fallback，可通过 `--backend python` 使用。
 
 ## Dataset
 
@@ -57,9 +59,25 @@ python scripts/train_tokenizer.py \
   --output-dir data/tokenizers/bpe_16k \
   --vocab-size 16384 \
   --name openwebtext_bpe_16k \
+  --backend tokenizers \
   --jsonl-field text \
   --max-chars 200000000
 ```
+
+如果需要使用项目内纯 Python 参考实现：
+
+```bash
+python scripts/train_tokenizer.py \
+  --input data/raw/openwebtext/train.jsonl \
+  --output-dir data/tokenizers/bpe_16k_python \
+  --vocab-size 16384 \
+  --backend python \
+  --jsonl-field text \
+  --max-chars 50000000
+```
+
+纯 Python backend 主要用于学习、调试和小规模对照；OpenWebText 正式 tokenizer
+训练默认使用 `tokenizers` backend。
 
 tokenize train/val：
 
