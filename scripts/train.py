@@ -83,6 +83,7 @@ def main() -> None:
                 "active_parameters_per_token": params.active_parameters_per_token,
                 "batch_size": cfg.training.batch_size,
                 "context_length": cfg.model.context_length,
+                "grad_accum_steps": cfg.training.grad_accum_steps,
             },
         )
     if start_step > max_iters:
@@ -100,24 +101,29 @@ def main() -> None:
         )
         for group in optimizer.param_groups:
             group["lr"] = lr
-        x, y = get_batch(train_dataset, cfg.training.batch_size, cfg.model.context_length, device)
-        logits = model(x)
-        loss = cross_entropy(logits, y)
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
+        accum_losses = []
+        for _ in range(cfg.training.grad_accum_steps):
+            x, y = get_batch(train_dataset, cfg.training.batch_size, cfg.model.context_length, device)
+            logits = model(x)
+            loss = cross_entropy(logits, y)
+            (loss / cfg.training.grad_accum_steps).backward()
+            accum_losses.append(float(loss.detach().cpu()))
         if cfg.training.grad_clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.training.grad_clip)
         optimizer.step()
         completed_step = step + 1
         elapsed = time.perf_counter() - start
-        train_loss = float(loss.detach().cpu())
-        tokens_seen = (completed_step - start_step) * cfg.training.batch_size * cfg.model.context_length
+        train_loss = float(np.mean(accum_losses))
+        tokens_per_step = cfg.training.batch_size * cfg.model.context_length * cfg.training.grad_accum_steps
+        tokens_seen = (completed_step - start_step) * tokens_per_step
         train_record = {
             "type": "train",
             "step": completed_step,
             "lr": lr,
             "loss": train_loss,
-            "tokens": completed_step * cfg.training.batch_size * cfg.model.context_length,
+            "tokens": completed_step * tokens_per_step,
+            "grad_accum_steps": cfg.training.grad_accum_steps,
             "tokens_per_second": tokens_seen / max(elapsed, 1e-9),
             "elapsed_seconds": elapsed,
         }
@@ -158,7 +164,12 @@ def main() -> None:
             )
 
     elapsed = time.perf_counter() - start
-    tokens = (max_iters - start_step) * cfg.training.batch_size * cfg.model.context_length
+    tokens = (
+        (max_iters - start_step)
+        * cfg.training.batch_size
+        * cfg.model.context_length
+        * cfg.training.grad_accum_steps
+    )
     print(f"tokens_per_second={tokens / max(elapsed, 1e-9):.2f}")
 
 

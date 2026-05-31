@@ -66,6 +66,7 @@ def test_train_cli_real_data_checkpoint_and_resume(tmp_path: Path):
                     "cosine_cycle_iters": 4,
                     "dtype": "float32",
                     "device": "cpu",
+                    "grad_accum_steps": 2,
                     "seed": 123,
                 },
                 "runtime": {
@@ -97,6 +98,9 @@ def test_train_cli_real_data_checkpoint_and_resume(tmp_path: Path):
         if line.strip()
     ]
     assert any(record["type"] == "train" and record["step"] == 1 for record in records)
+    first_train = next(record for record in records if record["type"] == "train" and record["step"] == 1)
+    assert first_train["grad_accum_steps"] == 2
+    assert first_train["tokens"] == 2 * 8 * 2
     assert any(record["type"] == "eval" and record["step"] == 2 for record in records)
     assert any(record["type"] == "train" and record["step"] == 3 for record in records)
     assert any(record["type"] == "eval" and record["step"] == 3 for record in records)

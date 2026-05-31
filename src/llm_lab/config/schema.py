@@ -140,6 +140,7 @@ class TrainingConfig:
     beta2: float = 0.95
     adam_eps: float = 1e-8
     grad_clip: float = 1.0
+    grad_accum_steps: int = 1
     seed: int = 0
     dtype: str = "float32"
     device: str = "cpu"
@@ -153,6 +154,8 @@ class TrainingConfig:
             raise ValueError("learning_rate must be positive")
         if self.min_learning_rate < 0:
             raise ValueError("min_learning_rate cannot be negative")
+        if self.grad_accum_steps <= 0:
+            raise ValueError("grad_accum_steps must be positive")
         if self.dtype not in {"float32", "float16", "bfloat16"}:
             raise ValueError("dtype must be float32, float16, or bfloat16")
 
