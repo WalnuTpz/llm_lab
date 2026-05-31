@@ -120,6 +120,22 @@ uv run python scripts/tokenize_text.py \
 The current tokenizer pipeline includes a minimal byte-level tokenizer. It is
 intended as a stable unified baseline for smoke tests and early experiments.
 
+## Generate
+
+```bash
+uv run python scripts/generate.py \
+  --config configs/modern_decoder.yaml \
+  --prompt "hello" \
+  --max-new-tokens 16 \
+  --device cpu
+```
+
+When passing comma-separated token IDs from PowerShell, quote the value:
+
+```bash
+uv run python scripts/generate.py --config tests/fixtures/configs/modern_decoder_small.yaml --prompt-ids "1,2"
+```
+
 ## Benchmark
 
 ```bash
