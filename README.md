@@ -43,6 +43,8 @@ attention, and CSA/HCA-like compressed attention interfaces.
 
 Architecture notes are in:
 
+- [docs/model_notes/original_transformer.md](docs/model_notes/original_transformer.md)
+- [docs/model_notes/modern_decoder.md](docs/model_notes/modern_decoder.md)
 - [docs/model_notes/qwen36.md](docs/model_notes/qwen36.md)
 - [docs/model_notes/deepseek_v4.md](docs/model_notes/deepseek_v4.md)
 

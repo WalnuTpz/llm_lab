@@ -1,51 +1,182 @@
-# qwen36 架构记录
+# qwen36 架构说明
 
-本项目的 `qwen36` 是 Qwen3.6 语言主干的 100M 规模缩放复现，不复现官方权重、
-视觉 encoder、训练数据或部署 kernel。
+`qwen36` 是本项目对 Qwen3.6 公开语言模型拓扑的 100M-scale 缩放复现。它的
+目标不是复现官方权重、训练数据、视觉 encoder 或生产 kernel，而是在本项目的
+统一接口下尽量保留 Qwen3.6 text backbone 的关键结构。
 
-## 公开依据
+## 公开架构依据
 
 主要依据：
 
 - Hugging Face model card: https://huggingface.co/Qwen/Qwen3.6-27B
 - Hugging Face config: https://huggingface.co/Qwen/Qwen3.6-27B/blob/main/config.json
 
-截至 2026-05-31 可公开核对的信息：
+截至 2026-05-31，可公开核对的关键点包括：
 
-- 模型卡称 Qwen3.6-27B 是 causal language model with vision encoder。
-- 语言模型参数量为 27B，hidden dimension 为 5120。
-- 语言模型有 64 层。
-- hidden layout 为 `16 x (3 x (Gated DeltaNet -> FFN) -> 1 x (Gated Attention -> FFN))`。
-- Gated DeltaNet 使用 linear attention heads：V 为 48 heads，QK 为 16 heads，head dim 为 128。
-- Gated Attention 使用 Q heads 24、KV heads 4、head dim 256。
-- FFN intermediate dimension 为 17408。
-- MTP 使用 multi-step training。
-- native context length 为 262144，并可通过 YaRN 扩展到约 1010000。
-- `config.json` 中 `text_config.full_attention_interval = 4`。
-- `config.json` 中 `text_config.layer_types` 按 3 个 `"linear_attention"` 加 1 个
-  `"full_attention"` 重复。
-- `config.json` 中 `mtp_num_hidden_layers = 1`。
-- `config.json` 中 `partial_rotary_factor = 0.25`，`rope_theta = 10000000`。
+- text model 是 causal LM。
+- hidden layout 是 3 个 Gated DeltaNet layer 后接 1 个 Gated Attention layer，
+  重复形成 3:1 的 layer schedule。
+- `full_attention_interval = 4`。
+- `layer_types` 按 `"linear_attention"`、`"linear_attention"`、
+  `"linear_attention"`、`"full_attention"` 重复。
+- Gated DeltaNet 承担大多数 layer 的 linear mixer 角色。
+- Gated Attention 承担周期性 full attention 角色。
+- `mtp_num_hidden_layers = 1`。
+- `partial_rotary_factor = 0.25`。
+- `rope_theta = 10000000`。
 
-## 缩放复现要求
+## 定位
 
-`qwen36` 必须保留真实拓扑的关键结构：
+这个模型回答的问题是：在约 100M 参数规模下，把大部分 full attention 层替换成
+linear mixer，并周期性保留 full attention，会如何影响训练速度、显存、loss 和
+长上下文行为。
 
-- 3:1 的 `linear_attention` / `full_attention` layer schedule。
-- linear layer 使用 Gated DeltaNet-like mixer，而不是普通 self-attention。
-- full layer 使用 Gated Attention-like full attention。
-- 每个 token mixer 后接 FFN。
-- 配置字段保留 `full_attention_interval`、`layer_types`、linear mixer heads、
-  full attention heads、KV heads、MTP 等概念。
+它不是“普通 Transformer 改名”。当前实现保留了 3:1 的 linear/full schedule，
+并区分 Gated DeltaNet-like mixer 和 Gated Attention-like full attention。
 
-允许缩放：
+## 当前正式配置
 
-- hidden size、层数、heads、FFN 宽度、context length。
-- Gated DeltaNet 的 kernel 可以用纯 PyTorch 简化实现。
-- 视觉 encoder 第一版可以不实现，默认 text-only。
+配置文件：`configs/qwen36.yaml`
 
-不允许：
+```yaml
+architecture: qwen36
+vocab_size: 16384
+context_length: 1024
+d_model: 720
+num_layers: 12
+num_heads: 12
+num_kv_heads: 4
+d_ff: 1920
+tie_embeddings: true
+norm_type: rmsnorm
+activation: swiglu
+ffn_type: swiglu
+attention_type: hybrid
+position_encoding: rope
+rope_theta: 10000000.0
+partial_rotary_factor: 0.25
+qk_norm: true
+full_attention_interval: 4
+mtp_layers: 1
+mtp_loss_weight: 0.1
+```
 
-- 把 75% 的 linear_attention 层替换成普通 full attention。
-- 去掉 3:1 layer schedule。
-- 只实现一个普通 Transformer 后命名为 qwen36。
+`scripts/inspect_model.py --device cpu` 的当前参数统计：
+
+```text
+total_parameters: 102407760
+embedding_parameters: 11796480
+non_embedding_parameters: 90611280
+active_parameters_per_token: 102407760
+```
+
+当前实现不是 MoE，所以每个 token 的 active parameters 等于 total parameters。
+
+## Layer schedule
+
+实现文件：
+
+- `src/llm_lab/models/qwen36/model.py`
+- `src/llm_lab/models/qwen36/mixers.py`
+
+默认 `qwen36_layer_types()` 根据 `full_attention_interval = 4` 生成 12 层：
+
+```text
+0:  linear_attention
+1:  linear_attention
+2:  linear_attention
+3:  full_attention
+4:  linear_attention
+5:  linear_attention
+6:  linear_attention
+7:  full_attention
+8:  linear_attention
+9:  linear_attention
+10: linear_attention
+11: full_attention
+```
+
+每个 block 的公共结构是：
+
+```text
+x = x + Mixer(RMSNorm(x))
+x = x + SwiGLU(RMSNorm(x))
+```
+
+## Gated DeltaNet-like mixer
+
+`linear_attention` 层使用 `GatedDeltaNetMixer`。当前实现是纯 PyTorch 版本，核心
+流程是：
+
+```text
+q = elu(Wq(x)) + 1
+k = elu(Wk(x)) + 1
+v = Wv(x)
+gate = sigmoid(Wg(x))
+
+kv_state = cumsum(k outer v)
+k_state = cumsum(k)
+y_t = q_t * kv_state_t / (q_t * k_state_t)
+y = Wo(y * gate)
+```
+
+它保留了 causal linear mixer、门控和按时间累积状态的结构思想，但没有复现官方
+Gated DeltaNet 的高性能 kernel、精确更新规则和所有 head layout 细节。
+
+当前缩放版本使用 `d_model=720`、`num_heads=12`，所以 linear mixer head dim 为
+60。官方 Qwen3.6 中 DeltaNet 的 QK/V head layout 与本项目缩放配置不同，这是
+有意缩放。
+
+## Gated Attention-like full attention
+
+`full_attention` 层使用 `GatedFullAttention`：
+
+```text
+y = GQA(x, RoPE, QK-Norm) * sigmoid(Wg(x))
+```
+
+其中 GQA 配置为：
+
+- query heads: `12`
+- KV heads: `4`
+- head dim: `60`
+- RoPE: `partial_rotary_factor = 0.25`
+- RoPE theta: `10000000`
+- QK-Norm: enabled
+
+full attention 只出现在每 4 层的最后一层，用来保留周期性的全局信息混合。
+
+## MTP 状态
+
+配置和模型里已经有 `mtp_layers = 1`，实现中存在 `mtp_heads`。当前 `forward()`
+仍只返回主 next-token logits，训练 loss 当前也是普通 cross entropy。
+
+因此当前状态是：MTP 作为架构接口已经保留，但 auxiliary MTP loss 尚未接入训练
+循环。后续如果要更接近真实 Qwen3.6，需要把 `mtp_heads` 的输出纳入训练目标。
+
+## 复现边界
+
+保留的真实拓扑：
+
+- 3:1 linear attention / full attention schedule。
+- Gated DeltaNet-like linear mixer。
+- Gated full attention。
+- RMSNorm + SwiGLU decoder block。
+- partial RoPE。
+- QK-Norm。
+- MTP head 接口。
+
+明确简化的部分：
+
+- 不实现视觉 encoder。
+- 不复现官方 27B hidden size、64 层、head layout 和长上下文配置。
+- 不复现 YaRN 扩展、训练数据、post-training 或部署 kernel。
+- DeltaNet 是教学/实验用纯 PyTorch mixer，不是官方 kernel。
+- MTP auxiliary loss 还没有接入训练循环。
+
+## 实验价值
+
+`qwen36` 应该主要和 `modern_decoder` 对比。它们都是 dense 模型，参数量接近，
+区别在于 `qwen36` 用 75% linear mixer + 25% full attention 的 hybrid backbone
+替代每层 full attention。关键观测指标应包括 tokens/sec、显存、loss 曲线以及
+上下文长度增长时的行为。

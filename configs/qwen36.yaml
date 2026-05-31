@@ -3,11 +3,11 @@ model:
   architecture: qwen36
   vocab_size: 16384
   context_length: 1024
-  d_model: 768
+  d_model: 720
   num_layers: 12
   num_heads: 12
   num_kv_heads: 4
-  d_ff: 2048
+  d_ff: 1920
   tie_embeddings: true
   norm_type: rmsnorm
   activation: swiglu
