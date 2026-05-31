@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from llm_lab.config import load_config
-from llm_lab.data import get_batch
+from llm_lab.data import ByteLevelBPETokenizer, get_batch
 from llm_lab.models import build_model
 from llm_lab.training import cosine_lr, cross_entropy
 from llm_lab.utils import dtype_from_str, resolve_device, safe_dtype_for_device
@@ -23,6 +23,12 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if cfg.data.tokenizer_path is not None:
+        tokenizer = ByteLevelBPETokenizer.load(cfg.data.tokenizer_path)
+        if tokenizer.vocab_size > cfg.model.vocab_size:
+            raise ValueError(
+                f"tokenizer vocab_size {tokenizer.vocab_size} exceeds model vocab_size {cfg.model.vocab_size}"
+            )
     device = resolve_device(args.device or cfg.training.device)
     dtype = safe_dtype_for_device(dtype_from_str(args.dtype or cfg.training.dtype), device)
     torch.manual_seed(cfg.training.seed)

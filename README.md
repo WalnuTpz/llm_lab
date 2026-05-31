@@ -122,6 +122,9 @@ uv run python scripts/tokenize_text.py \
 The current tokenizer pipeline includes a minimal byte-level tokenizer. It is
 intended as a stable unified baseline for smoke tests and early experiments.
 
+Formal experiments use an OpenWebText-trained 16k byte-level BPE tokenizer.
+See [docs/data_tokenizer_plan.md](docs/data_tokenizer_plan.md).
+
 ## Generate
 
 ```bash

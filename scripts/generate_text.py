@@ -5,7 +5,7 @@ import argparse
 import torch
 
 from llm_lab.config import load_config
-from llm_lab.data import ByteTokenizer
+from llm_lab.data import ByteLevelBPETokenizer, ByteTokenizer
 from llm_lab.generation import generate
 from llm_lab.models import build_model
 from llm_lab.utils import dtype_from_str, resolve_device, safe_dtype_for_device
@@ -27,7 +27,11 @@ def main() -> None:
     device = resolve_device(args.device)
     dtype = safe_dtype_for_device(dtype_from_str(args.dtype or cfg.training.dtype), device)
     model = build_model(cfg.model, device=device, dtype=dtype)
-    tokenizer = ByteTokenizer()
+    tokenizer = ByteLevelBPETokenizer.load(cfg.data.tokenizer_path) if cfg.data.tokenizer_path else ByteTokenizer()
+    if tokenizer.vocab_size > cfg.model.vocab_size:
+        raise ValueError(
+            f"tokenizer vocab_size {tokenizer.vocab_size} exceeds model vocab_size {cfg.model.vocab_size}"
+        )
     if args.prompt is not None:
         ids = tokenizer.encode(args.prompt)
     else:
