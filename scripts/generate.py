@@ -5,6 +5,7 @@ import argparse
 import torch
 
 from llm_lab.config import load_config
+from llm_lab.data import ByteTokenizer
 from llm_lab.generation import generate
 from llm_lab.models import build_model
 from llm_lab.utils import dtype_from_str, resolve_device, safe_dtype_for_device
@@ -13,6 +14,7 @@ from llm_lab.utils import dtype_from_str, resolve_device, safe_dtype_for_device
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate token ids from a configured model.")
     parser.add_argument("--config", required=True)
+    parser.add_argument("--prompt", default=None)
     parser.add_argument("--prompt-ids", default="0")
     parser.add_argument("--max-new-tokens", type=int, default=16)
     parser.add_argument("--device", default="cpu")
@@ -25,7 +27,11 @@ def main() -> None:
     device = resolve_device(args.device)
     dtype = safe_dtype_for_device(dtype_from_str(args.dtype or cfg.training.dtype), device)
     model = build_model(cfg.model, device=device, dtype=dtype)
-    ids = [int(part.strip()) for part in args.prompt_ids.split(",") if part.strip()]
+    tokenizer = ByteTokenizer()
+    if args.prompt is not None:
+        ids = tokenizer.encode(args.prompt)
+    else:
+        ids = [int(part.strip()) for part in args.prompt_ids.split(",") if part.strip()]
     prompt = torch.tensor([ids], dtype=torch.long, device=device)
     out = generate(
         model,
@@ -35,7 +41,10 @@ def main() -> None:
         temperature=args.temperature,
         top_p=args.top_p,
     )
-    print(",".join(str(i) for i in out[0].tolist()))
+    ids_out = out[0].tolist()
+    print(",".join(str(i) for i in ids_out))
+    if args.prompt is not None:
+        print(tokenizer.decode(ids_out))
 
 
 if __name__ == "__main__":
