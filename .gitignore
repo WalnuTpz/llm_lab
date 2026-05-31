@@ -163,9 +163,25 @@ cython_debug/
 .ruff_cache/
 *.zip
 
-experiments/
-data/
-artifacts/
-checkpoints/
-runs/
-wandb/
+# Project runtime outputs
+/experiments/
+/data/
+/artifacts/
+/checkpoints/
+/runs/
+/wandb/
+
+# Local training artifacts and model weights
+*.ckpt
+*.pth
+*.safetensors
+/artifacts/**/*.pt
+/artifacts/**/*.bin
+/artifacts/**/*.npy
+/artifacts/**/*.npz
+/checkpoints/**/*.pt
+/checkpoints/**/*.bin
+/checkpoints/**/*.safetensors
+/data/**/*.bin
+/data/**/*.npy
+/data/**/*.npz
