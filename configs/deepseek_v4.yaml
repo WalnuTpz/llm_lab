@@ -28,6 +28,11 @@ model:
   compression_ratio: 4
   mtp_layers: 1
   mtp_loss_weight: 0.1
+data:
+  train_data: data/tokens/bpe_16k/train.npy
+  val_data: data/tokens/bpe_16k/val.npy
+  tokenizer_path: data/tokenizers/bpe_16k
+  dataset_dtype: uint16
 training:
   batch_size: 8
   max_iters: 1000

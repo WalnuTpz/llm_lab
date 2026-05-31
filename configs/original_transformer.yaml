@@ -15,6 +15,11 @@ model:
   attention_type: mha
   position_encoding: sinusoidal
   qk_norm: false
+data:
+  train_data: data/tokens/bpe_16k/train.npy
+  val_data: data/tokens/bpe_16k/val.npy
+  tokenizer_path: data/tokenizers/bpe_16k
+  dataset_dtype: uint16
 training:
   batch_size: 8
   max_iters: 1000

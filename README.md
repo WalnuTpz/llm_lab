@@ -23,6 +23,8 @@ so tests only require CPU smoke validation with small fixture configs.
 
 See [docs/implementation_requirements.md](docs/implementation_requirements.md)
 for the full implementation requirements and model positioning.
+See [docs/experiment_protocol.md](docs/experiment_protocol.md) for the cloud
+training comparison protocol.
 
 ## Models
 

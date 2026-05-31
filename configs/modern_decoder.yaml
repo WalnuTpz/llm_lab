@@ -17,6 +17,11 @@ model:
   rope_theta: 1000000.0
   partial_rotary_factor: 1.0
   qk_norm: true
+data:
+  train_data: data/tokens/bpe_16k/train.npy
+  val_data: data/tokens/bpe_16k/val.npy
+  tokenizer_path: data/tokenizers/bpe_16k
+  dataset_dtype: uint16
 training:
   batch_size: 8
   max_iters: 1000
