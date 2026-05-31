@@ -1,7 +1,7 @@
 [project]
-name = "cs336_basics"
-version = "1.0.6"
-description = "CS336 Assignment 1"
+name = "llm-lab"
+version = "0.1.0"
+description = "100M-scale LLM architecture reproduction lab"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,6 +10,7 @@ dependencies = [
     "jaxtyping>=0.3.0", # type hints for pytorch/jax/numpy
     "numpy",
     "psutil>=6.1.1",
+    "pyyaml>=6.0.2",
     "pytest>=8.3.4",
     "regex>=2024.11.6", # more powerful regex than the builtin `re` module
     "submitit>=1.5.2", # job submission for SLURM
@@ -26,8 +27,8 @@ requires = ["uv_build>=0.8.3,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = "cs336_basics"
-module-root = ""
+module-name = "llm_lab"
+module-root = "src"
 
 [tool.uv]
 package = true
