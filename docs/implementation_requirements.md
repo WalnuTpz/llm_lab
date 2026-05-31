@@ -25,6 +25,28 @@
 - 不把 `tiny` 或 debug 规模作为正式配置。单元测试内部可以使用小 shape，
   但项目配置文件应该代表 100M 规模实验。
 
+## 开发执行约束
+
+- 本地当前没有可用 GPU，因此开发期不要求实际训练 100M 模型。
+- 必须提供 CPU-only smoke tests，用小配置验证：
+  - config loading
+  - model construction
+  - forward pass
+  - loss computation
+  - backward pass
+  - parameter accounting
+- 100M 正式配置只要求配置合理、模型可构建、参数统计可用、脚本入口正确。
+- 继续使用 `uv` 作为项目环境和依赖管理工具。
+- `uv.lock` 只能通过 `uv lock` 等正常命令生成，不手动编辑。
+- 旧的 `cs336_basics` 代码只作为参考，不要求保留原结构。
+- 如果旧代码质量不适合扩展，可以重写一套更标准的 `src/llm_lab` 实现。
+- 新实现和测试稳定后，可以删除旧的 `cs336_basics` 目录。
+- 允许联网核对 `qwen36` 和 `deepseek_v4` 的公开架构资料。
+- 架构核对优先使用官方 model card、Hugging Face config、Transformers 文档、论文或技术报告。
+- 编写代码时避免一次性写入超长文件；大型模块应拆成多个文件或多次 patch。
+- 开发过程中应拆成小阶段，每完成一个稳定功能点就 commit 并 push。
+- commit 应保持小而清晰，优先按模块、配置、测试或脚本拆分。
+
 ## 复现原则
 
 `qwen36` 和 `deepseek_v4` 要尽量保留真实模型公开架构的形状，只把宽度、深度、
