@@ -100,6 +100,12 @@ uv run python scripts/inspect_model.py --config configs/modern_decoder.yaml --de
 For the 100M configs, `--device cpu` is useful for parameter inspection only;
 real training is intended for GPU.
 
+To compare all formal configs without allocating model weights:
+
+```bash
+uv run python scripts/inspect_all_models.py
+```
+
 ## Smoke Train
 
 ```bash
