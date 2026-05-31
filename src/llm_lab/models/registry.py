@@ -6,6 +6,7 @@ from torch import nn
 from llm_lab.config.schema import ModelConfig
 from llm_lab.models.modern_decoder import ModernDecoderLM
 from llm_lab.models.original_transformer import OriginalTransformerLM
+from llm_lab.models.qwen36 import Qwen36LM
 
 
 def build_model(
@@ -19,4 +20,6 @@ def build_model(
         return OriginalTransformerLM(cfg, device=device, dtype=dtype)
     if cfg.architecture == "modern_decoder":
         return ModernDecoderLM(cfg, device=device, dtype=dtype)
+    if cfg.architecture == "qwen36":
+        return Qwen36LM(cfg, device=device, dtype=dtype)
     raise NotImplementedError(f"architecture is not implemented yet: {cfg.architecture}")
