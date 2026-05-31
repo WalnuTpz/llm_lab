@@ -32,6 +32,11 @@ def main() -> None:
         ids = tokenizer.encode(args.prompt)
     else:
         ids = [int(part.strip()) for part in args.prompt_ids.split(",") if part.strip()]
+    if ids and max(ids) >= cfg.model.vocab_size:
+        raise ValueError(
+            f"prompt contains token id {max(ids)} but configured vocab_size is {cfg.model.vocab_size}; "
+            "use a config with a larger vocab or pass smaller --prompt-ids"
+        )
     prompt = torch.tensor([ids], dtype=torch.long, device=device)
     out = generate(
         model,
