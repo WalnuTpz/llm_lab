@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import Tensor, nn
 
@@ -15,7 +17,7 @@ class SinusoidalPositionEmbedding(nn.Module):
     ) -> None:
         super().__init__()
         pos = torch.arange(max_seq_len, device=device, dtype=torch.float32).unsqueeze(1)
-        div = torch.exp(torch.arange(0, d_model, 2, device=device, dtype=torch.float32) * (-torch.log(torch.tensor(10000.0)) / d_model))
+        div = torch.exp(torch.arange(0, d_model, 2, device=device, dtype=torch.float32) * (-math.log(10000.0) / d_model))
         pe = torch.zeros(max_seq_len, d_model, device=device, dtype=torch.float32)
         pe[:, 0::2] = torch.sin(pos * div)
         pe[:, 1::2] = torch.cos(pos * div[: pe[:, 1::2].shape[1]])
