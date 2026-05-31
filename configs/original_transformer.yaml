@@ -1,0 +1,29 @@
+name: original_transformer_100m
+model:
+  architecture: original_transformer
+  vocab_size: 16384
+  context_length: 1024
+  d_model: 768
+  num_layers: 12
+  num_heads: 12
+  num_kv_heads: 12
+  d_ff: 3072
+  tie_embeddings: true
+  norm_type: layernorm
+  activation: relu
+  ffn_type: relu
+  attention_type: mha
+  position_encoding: sinusoidal
+  qk_norm: false
+training:
+  batch_size: 8
+  max_iters: 1000
+  learning_rate: 0.0003
+  min_learning_rate: 0.00003
+  warmup_iters: 100
+  cosine_cycle_iters: 1000
+  dtype: bfloat16
+  device: cuda
+runtime:
+  checkpoint_dir: checkpoints/original_transformer
+  run_dir: runs/original_transformer
