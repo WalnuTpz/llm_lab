@@ -170,8 +170,12 @@ class RuntimeConfig:
     def validate(self) -> None:
         if self.log_interval <= 0:
             raise ValueError("log_interval must be positive")
+        if self.eval_interval <= 0:
+            raise ValueError("eval_interval must be positive")
         if self.eval_batches <= 0:
             raise ValueError("eval_batches must be positive")
+        if self.checkpoint_interval <= 0:
+            raise ValueError("checkpoint_interval must be positive")
 
 
 @dataclass(slots=True)

@@ -117,6 +117,8 @@ uv run python scripts/train.py \
 ```
 
 Smoke training uses random token IDs and does not require a dataset.
+Training writes `metrics.jsonl` under `runtime.run_dir` and checkpoints under
+`runtime.checkpoint_dir`; resume with `--resume` to load `latest.pt`.
 
 ## Tokenize Text
 
