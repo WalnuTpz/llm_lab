@@ -25,6 +25,8 @@ See [docs/implementation_requirements.md](docs/implementation_requirements.md)
 for the full implementation requirements and model positioning.
 See [docs/experiment_protocol.md](docs/experiment_protocol.md) for the cloud
 training comparison protocol.
+See [docs/cloud_training.md](docs/cloud_training.md) for the end-to-end cloud
+runbook.
 
 ## Models
 
