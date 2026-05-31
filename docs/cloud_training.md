@@ -11,6 +11,11 @@ cd llm_lab
 uv sync
 ```
 
+RTX PRO 6000 Blackwell 需要支持 `sm_120` 的 PyTorch wheel。本项目默认依赖已
+升级到 `torch~=2.8.0`，Linux CUDA 依赖会走 CUDA 12.8 线。旧的 `torch 2.6/cu124`
+会看到 GPU，但运行 kernel 时会报 `no kernel image is available for execution on
+the device`。
+
 确认代码和配置：
 
 ```bash
@@ -19,6 +24,12 @@ uv run pytest
 ```
 
 `inspect_all_models.py` 默认使用 `meta` device，不会分配 100M 权重。
+
+如果使用 RTX PRO 6000 Blackwell，安装后先确认 arch list 包含 `sm_120`：
+
+```bash
+uv run python -c "import torch; print(torch.__version__); print(torch.cuda.get_arch_list())"
+```
 
 ## 2. Prepare OpenWebText
 
