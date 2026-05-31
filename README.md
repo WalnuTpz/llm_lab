@@ -1,50 +1,132 @@
-# CS336 Spring 2025 Assignment 1: Basics
+# LLM Lab
 
-For a full description of the assignment, see the assignment handout at
-[cs336_spring2025_assignment1_basics.pdf](./cs336_spring2025_assignment1_basics.pdf)
+100M-scale LLM architecture reproduction lab.
 
-If you see any issues with the assignment handout or code, please feel free to
-raise a GitHub issue or open a pull request with a fix.
+This repository compares four language model architectures under one package,
+one config system, one training/generation/benchmark interface, and one set of
+CPU smoke tests:
 
-## Setup
+- `original_transformer`
+- `modern_decoder`
+- `qwen36`
+- `deepseek_v4`
 
-### Environment
-We manage our environments with `uv` to ensure reproducibility, portability, and ease of use.
-Install `uv` [here](https://github.com/astral-sh/uv) (recommended), or run `pip install uv`/`brew install uv`.
-We recommend reading a bit about managing projects in `uv` [here](https://docs.astral.sh/uv/guides/projects/#managing-dependencies) (you will not regret it!).
+The goal is architecture-level scaled reproduction, not official weights,
+official data, post-training, or production CUDA kernels.
 
-You can now run any code in the repo using
-```sh
-uv run <python_file_path>
+## Scope
+
+The main experiment scale is around 100M parameters. The intended hardware for
+real training is a single RTX 4090, with each model targeted to fit within a
+10-hour training budget. This local development environment may not have a GPU,
+so tests only require CPU smoke validation with small fixture configs.
+
+See [docs/implementation_requirements.md](docs/implementation_requirements.md)
+for the full implementation requirements and model positioning.
+
+## Models
+
+`original_transformer` is a historical decoder-only baseline using original
+Transformer-style components: full MHA, sinusoidal positions, LayerNorm, and
+ReLU FFN.
+
+`modern_decoder` is the stable modern dense baseline: RMSNorm, RoPE, SwiGLU,
+GQA, and optional QK-Norm.
+
+`qwen36` is a scaled reproduction of the public Qwen3.6 topology. It preserves
+the 3:1 linear-mixer/full-attention schedule with Gated DeltaNet-like and Gated
+Attention-like blocks.
+
+`deepseek_v4` is a scaled reproduction of the public DeepSeek V4 topology. It
+keeps MoE, shared expert support, MTP heads, partial RoPE, small KV-head
+attention, and CSA/HCA-like compressed attention interfaces.
+
+Architecture notes are in:
+
+- [docs/model_notes/qwen36.md](docs/model_notes/qwen36.md)
+- [docs/model_notes/deepseek_v4.md](docs/model_notes/deepseek_v4.md)
+
+## Layout
+
+```text
+configs/                    # 100M-scale experiment configs
+docs/                       # requirements and architecture notes
+scripts/                    # CLI entrypoints
+src/llm_lab/                # Python package
+tests/                      # CPU smoke tests and small fixture configs
 ```
-and the environment will be automatically solved and activated when necessary.
 
-### Run unit tests
+Runtime outputs are ignored by Git:
 
+```text
+data/
+artifacts/
+checkpoints/
+runs/
+wandb/
+```
 
-```sh
+## Environment
+
+The project uses `uv`.
+
+```bash
+uv sync
+```
+
+If `uv` has trouble on a Windows UNC path, run commands from WSL or use the
+existing `.venv` created by `uv` inside the WSL workspace.
+
+## Test
+
+```bash
 uv run pytest
 ```
 
-Initially, all tests should fail with `NotImplementedError`s.
-To connect your implementation to the tests, complete the
-functions in [./tests/adapters.py](./tests/adapters.py).
+The expected test set is CPU-only and uses small configs in
+`tests/fixtures/configs/`. It verifies config loading, model construction,
+forward pass, loss, backward pass, tokenizer behavior, and parameter accounting.
 
-### Download data
-Download the TinyStories data and a subsample of OpenWebText
+## Inspect A Model
 
-``` sh
-mkdir -p data
-cd data
-
-wget https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt
-wget https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt
-
-wget https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_train.txt.gz
-gunzip owt_train.txt.gz
-wget https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_valid.txt.gz
-gunzip owt_valid.txt.gz
-
-cd ..
+```bash
+uv run python scripts/inspect_model.py --config configs/modern_decoder.yaml --device cpu
 ```
 
+For the 100M configs, `--device cpu` is useful for parameter inspection only;
+real training is intended for GPU.
+
+## Smoke Train
+
+```bash
+uv run python scripts/train.py \
+  --config tests/fixtures/configs/modern_decoder_small.yaml \
+  --smoke \
+  --device cpu \
+  --max-iters 1
+```
+
+Smoke training uses random token IDs and does not require a dataset.
+
+## Tokenize Text
+
+```bash
+uv run python scripts/tokenize_text.py \
+  --input data/raw.txt \
+  --output data/tokens.npy \
+  --add-eot
+```
+
+The current tokenizer pipeline includes a minimal byte-level tokenizer. It is
+intended as a stable unified baseline for smoke tests and early experiments.
+
+## Benchmark
+
+```bash
+uv run python scripts/benchmark.py \
+  --config tests/fixtures/configs/qwen36_small.yaml \
+  --device cpu \
+  --steps 3
+```
+
+GPU runs additionally report CUDA peak memory.
