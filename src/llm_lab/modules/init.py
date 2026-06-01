@@ -12,4 +12,6 @@ def init_linear_weight(weight: nn.Parameter | torch.Tensor, in_features: int, ou
 
 
 def init_embedding_weight(weight: nn.Parameter | torch.Tensor) -> None:
-    nn.init.trunc_normal_(weight, mean=0.0, std=1.0, a=-3.0, b=3.0)
+    d_model = weight.shape[-1]
+    std = 1.0 / math.sqrt(d_model)
+    nn.init.trunc_normal_(weight, mean=0.0, std=std, a=-3 * std, b=3 * std)

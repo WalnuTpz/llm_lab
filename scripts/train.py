@@ -57,6 +57,12 @@ def main() -> None:
     )
 
     max_iters = args.max_iters or (1 if args.smoke else cfg.training.max_iters)
+    warmup_iters, cosine_cycle_iters = _effective_lr_schedule(
+        config_max_iters=cfg.training.max_iters,
+        max_iters=max_iters,
+        config_warmup_iters=cfg.training.warmup_iters,
+        config_cosine_cycle_iters=cfg.training.cosine_cycle_iters,
+    )
     train_dataset, val_dataset = _load_datasets(cfg, smoke=args.smoke)
     checkpoint_dir = Path(cfg.runtime.checkpoint_dir)
     run_dir = Path(cfg.runtime.run_dir)
@@ -84,6 +90,9 @@ def main() -> None:
                 "batch_size": cfg.training.batch_size,
                 "context_length": cfg.model.context_length,
                 "grad_accum_steps": cfg.training.grad_accum_steps,
+                "max_iters": max_iters,
+                "warmup_iters": warmup_iters,
+                "cosine_cycle_iters": cosine_cycle_iters,
             },
         )
     if start_step > max_iters:
@@ -96,8 +105,8 @@ def main() -> None:
             step,
             cfg.training.learning_rate,
             cfg.training.min_learning_rate,
-            cfg.training.warmup_iters,
-            cfg.training.cosine_cycle_iters,
+            warmup_iters,
+            cosine_cycle_iters,
         )
         for group in optimizer.param_groups:
             group["lr"] = lr
@@ -247,6 +256,24 @@ def _load_datasets(cfg, *, smoke: bool) -> tuple[np.ndarray, np.ndarray | None]:
     train = np.load(cfg.data.train_data, mmap_mode="r")
     val = np.load(cfg.data.val_data, mmap_mode="r") if cfg.data.val_data is not None else None
     return train, val
+
+
+def _effective_lr_schedule(
+    *,
+    config_max_iters: int,
+    max_iters: int,
+    config_warmup_iters: int,
+    config_cosine_cycle_iters: int,
+) -> tuple[int, int]:
+    if config_cosine_cycle_iters != config_max_iters or max_iters == config_max_iters:
+        return min(config_warmup_iters, max_iters), max(config_cosine_cycle_iters, config_warmup_iters)
+
+    scale = max_iters / config_max_iters
+    warmup_iters = int(round(config_warmup_iters * scale))
+    if config_warmup_iters > 0:
+        warmup_iters = max(1, warmup_iters)
+    warmup_iters = min(warmup_iters, max_iters)
+    return warmup_iters, max_iters
 
 
 def _prepare_fresh_metrics(path: Path) -> None:

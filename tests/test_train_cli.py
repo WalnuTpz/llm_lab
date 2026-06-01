@@ -10,6 +10,7 @@ import torch
 import yaml
 
 from llm_lab.data import train_byte_level_bpe
+from scripts.train import _effective_lr_schedule
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +105,24 @@ def test_train_cli_real_data_checkpoint_and_resume(tmp_path: Path):
     assert any(record["type"] == "eval" and record["step"] == 2 for record in records)
     assert any(record["type"] == "train" and record["step"] == 3 for record in records)
     assert any(record["type"] == "eval" and record["step"] == 3 for record in records)
+
+
+def test_max_iters_override_scales_default_lr_schedule():
+    assert _effective_lr_schedule(
+        config_max_iters=1000,
+        max_iters=6000,
+        config_warmup_iters=100,
+        config_cosine_cycle_iters=1000,
+    ) == (600, 6000)
+
+
+def test_custom_lr_schedule_survives_max_iters_override():
+    assert _effective_lr_schedule(
+        config_max_iters=1000,
+        max_iters=6000,
+        config_warmup_iters=100,
+        config_cosine_cycle_iters=2000,
+    ) == (100, 2000)
 
 
 def _run_train(config_path: Path, *, max_iters: int, resume: bool = False) -> None:

@@ -22,11 +22,11 @@ data:
   dataset_dtype: uint16
 training:
   batch_size: 8
-  max_iters: 1000
+  max_iters: 6000
   learning_rate: 0.0003
   min_learning_rate: 0.00003
-  warmup_iters: 100
-  cosine_cycle_iters: 1000
+  warmup_iters: 600
+  cosine_cycle_iters: 6000
   dtype: bfloat16
   device: cuda
 runtime:
