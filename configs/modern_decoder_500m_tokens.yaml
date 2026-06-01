@@ -1,0 +1,36 @@
+name: modern_decoder_100m_500m_tokens
+model:
+  architecture: modern_decoder
+  vocab_size: 16384
+  context_length: 1024
+  d_model: 768
+  num_layers: 14
+  num_heads: 12
+  num_kv_heads: 4
+  d_ff: 2048
+  tie_embeddings: true
+  norm_type: rmsnorm
+  activation: swiglu
+  ffn_type: swiglu
+  attention_type: gqa
+  position_encoding: rope
+  rope_theta: 1000000.0
+  partial_rotary_factor: 1.0
+  qk_norm: true
+data:
+  train_data: data/tokens/bpe_16k/train.npy
+  val_data: data/tokens/bpe_16k/val.npy
+  tokenizer_path: data/tokenizers/bpe_16k
+  dataset_dtype: uint16
+training:
+  batch_size: 8
+  max_iters: 60000
+  learning_rate: 0.0003
+  min_learning_rate: 0.00003
+  warmup_iters: 2000
+  cosine_cycle_iters: 60000
+  dtype: bfloat16
+  device: cuda
+runtime:
+  checkpoint_dir: checkpoints/modern_decoder_500m_tokens
+  run_dir: runs/modern_decoder_500m_tokens

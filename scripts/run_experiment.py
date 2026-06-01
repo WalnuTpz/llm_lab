@@ -8,9 +8,13 @@ from pathlib import Path
 
 MODEL_CONFIGS = {
     "original_transformer": "configs/original_transformer.yaml",
+    "original_transformer_500m_tokens": "configs/original_transformer_500m_tokens.yaml",
     "modern_decoder": "configs/modern_decoder.yaml",
+    "modern_decoder_500m_tokens": "configs/modern_decoder_500m_tokens.yaml",
     "qwen36": "configs/qwen36.yaml",
+    "qwen36_500m_tokens": "configs/qwen36_500m_tokens.yaml",
     "deepseek_v4": "configs/deepseek_v4.yaml",
+    "deepseek_v4_500m_tokens": "configs/deepseek_v4_500m_tokens.yaml",
 }
 
 
