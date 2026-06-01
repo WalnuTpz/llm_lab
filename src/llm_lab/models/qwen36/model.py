@@ -81,11 +81,21 @@ class Qwen36LM(nn.Module, LMHeadMixin):
         )
 
     def forward(self, token_ids: Tensor) -> Tensor:
+        hidden = self._hidden_states(token_ids)
+        return self.project_logits(hidden)
+
+    def forward_with_mtp(self, token_ids: Tensor) -> tuple[Tensor, list[Tensor]]:
+        hidden = self._hidden_states(token_ids)
+        logits = self.project_logits(hidden)
+        mtp_logits = [head(hidden) for head in self.mtp_heads]
+        return logits, mtp_logits
+
+    def _hidden_states(self, token_ids: Tensor) -> Tensor:
         token_positions = make_token_positions(token_ids)
         x = self.token_embeddings(token_ids)
         for layer in self.layers:
             x = layer(x, token_positions)
-        return self.project_logits(self.final_norm(x))
+        return self.final_norm(x)
 
     def active_parameters_per_token(self) -> int:
         return sum(p.numel() for p in self.parameters())

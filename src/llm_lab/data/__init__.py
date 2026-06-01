@@ -1,6 +1,6 @@
 """Data, tokenizer, and batching utilities."""
 
-from llm_lab.data.batching import get_batch
+from llm_lab.data.batching import get_batch, get_batch_with_future_targets
 from llm_lab.data.bpe_tokenizer import (
     ByteLevelBPETokenizer,
     HFByteLevelBPETokenizer,
@@ -16,6 +16,7 @@ __all__ = [
     "HFByteLevelBPETokenizer",
     "expand_input_paths",
     "get_batch",
+    "get_batch_with_future_targets",
     "iter_text_documents",
     "train_byte_level_bpe",
     "train_hf_byte_level_bpe",

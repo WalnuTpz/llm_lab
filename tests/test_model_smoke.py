@@ -22,9 +22,18 @@ def test_all_models_forward_backward_and_parameter_report():
         model = build_model(cfg.model)
         x = torch.randint(0, cfg.model.vocab_size, (2, cfg.model.context_length))
         y = torch.randint(0, cfg.model.vocab_size, (2, cfg.model.context_length))
-        logits = model(x)
+        if cfg.model.mtp_layers > 0 and hasattr(model, "forward_with_mtp"):
+            logits, mtp_logits = model.forward_with_mtp(x)
+            assert len(mtp_logits) == cfg.model.mtp_layers
+            for mtp_logit in mtp_logits:
+                assert mtp_logit.shape == (2, cfg.model.context_length, cfg.model.vocab_size)
+        else:
+            logits = model(x)
         assert logits.shape == (2, cfg.model.context_length, cfg.model.vocab_size)
         loss = cross_entropy(logits, y)
+        if cfg.model.mtp_layers > 0 and hasattr(model, "forward_with_mtp"):
+            future_y = torch.randint(0, cfg.model.vocab_size, (2, cfg.model.context_length))
+            loss = loss + 0.1 * cross_entropy(mtp_logits[0], future_y)
         loss.backward()
         active = model.active_parameters_per_token() if hasattr(model, "active_parameters_per_token") else None
         report = parameter_report(model, active_parameters_per_token=active)

@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from llm_lab.config import load_config
-from llm_lab.data import ByteLevelBPETokenizer, get_batch
+from llm_lab.data import ByteLevelBPETokenizer, get_batch, get_batch_with_future_targets
 from llm_lab.models import build_model
 from llm_lab.training import cosine_lr, cross_entropy
 from llm_lab.utils import dtype_from_str, parameter_report, resolve_device, safe_dtype_for_device
@@ -46,6 +46,11 @@ def main() -> None:
     np.random.seed(cfg.training.seed)
 
     model = build_model(cfg.model, device=device, dtype=dtype)
+    mtp_layers = _enabled_mtp_layers(
+        model,
+        cfg.model.mtp_layers,
+        cfg.model.mtp_loss_weight,
+    )
     active = model.active_parameters_per_token() if hasattr(model, "active_parameters_per_token") else None
     params = parameter_report(model, active_parameters_per_token=active)
     optimizer = torch.optim.AdamW(
@@ -93,6 +98,8 @@ def main() -> None:
                 "max_iters": max_iters,
                 "warmup_iters": warmup_iters,
                 "cosine_cycle_iters": cosine_cycle_iters,
+                "mtp_layers": mtp_layers,
+                "mtp_loss_weight": cfg.model.mtp_loss_weight,
             },
         )
     if start_step > max_iters:
@@ -112,18 +119,36 @@ def main() -> None:
             group["lr"] = lr
         optimizer.zero_grad(set_to_none=True)
         accum_losses = []
+        accum_next_token_losses = []
+        accum_mtp_losses = []
         for _ in range(cfg.training.grad_accum_steps):
-            x, y = get_batch(train_dataset, cfg.training.batch_size, cfg.model.context_length, device)
-            logits = model(x)
-            loss = cross_entropy(logits, y)
+            x, targets = get_batch_with_future_targets(
+                train_dataset,
+                cfg.training.batch_size,
+                cfg.model.context_length,
+                device,
+                num_targets=1 + mtp_layers,
+            )
+            loss, next_token_loss, mtp_loss = _training_loss(
+                model,
+                x,
+                targets,
+                mtp_layers=mtp_layers,
+                mtp_loss_weight=cfg.model.mtp_loss_weight,
+            )
             (loss / cfg.training.grad_accum_steps).backward()
             accum_losses.append(float(loss.detach().cpu()))
+            accum_next_token_losses.append(float(next_token_loss.detach().cpu()))
+            if mtp_loss is not None:
+                accum_mtp_losses.append(float(mtp_loss.detach().cpu()))
         if cfg.training.grad_clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.training.grad_clip)
         optimizer.step()
         completed_step = step + 1
         elapsed = time.perf_counter() - start
         train_loss = float(np.mean(accum_losses))
+        next_token_loss = float(np.mean(accum_next_token_losses))
+        mtp_loss = float(np.mean(accum_mtp_losses)) if accum_mtp_losses else None
         tokens_per_step = cfg.training.batch_size * cfg.model.context_length * cfg.training.grad_accum_steps
         tokens_seen = (completed_step - start_step) * tokens_per_step
         train_record = {
@@ -131,14 +156,23 @@ def main() -> None:
             "step": completed_step,
             "lr": lr,
             "loss": train_loss,
+            "next_token_loss": next_token_loss,
             "tokens": completed_step * tokens_per_step,
             "grad_accum_steps": cfg.training.grad_accum_steps,
             "tokens_per_second": tokens_seen / max(elapsed, 1e-9),
             "elapsed_seconds": elapsed,
         }
+        if mtp_loss is not None:
+            train_record["mtp_loss"] = mtp_loss
         _write_metric(metrics_path, train_record)
         if completed_step % cfg.runtime.log_interval == 0 or completed_step == max_iters:
-            print(f"step={completed_step} lr={lr:.6g} loss={train_loss:.6f}")
+            if mtp_loss is None:
+                print(f"step={completed_step} lr={lr:.6g} loss={train_loss:.6f}")
+            else:
+                print(
+                    f"step={completed_step} lr={lr:.6g} loss={train_loss:.6f} "
+                    f"next_token_loss={next_token_loss:.6f} mtp_loss={mtp_loss:.6f}"
+                )
 
         if val_dataset is not None and (
             completed_step % cfg.runtime.eval_interval == 0 or completed_step == max_iters
@@ -180,6 +214,39 @@ def main() -> None:
         * cfg.training.grad_accum_steps
     )
     print(f"tokens_per_second={tokens / max(elapsed, 1e-9):.2f}")
+
+
+def _enabled_mtp_layers(model: torch.nn.Module, mtp_layers: int, mtp_loss_weight: float) -> int:
+    if mtp_layers <= 0 or mtp_loss_weight <= 0.0:
+        return 0
+    if not hasattr(model, "forward_with_mtp"):
+        raise ValueError("mtp_loss_weight > 0 requires a model that implements forward_with_mtp")
+    return mtp_layers
+
+
+def _training_loss(
+    model: torch.nn.Module,
+    x: torch.Tensor,
+    targets: list[torch.Tensor],
+    *,
+    mtp_layers: int,
+    mtp_loss_weight: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    if mtp_layers == 0:
+        logits = model(x)
+        next_token_loss = cross_entropy(logits, targets[0])
+        return next_token_loss, next_token_loss, None
+
+    logits, mtp_logits = model.forward_with_mtp(x)
+    if len(mtp_logits) < mtp_layers:
+        raise RuntimeError(f"model returned {len(mtp_logits)} MTP logits, expected {mtp_layers}")
+    next_token_loss = cross_entropy(logits, targets[0])
+    mtp_losses = [
+        cross_entropy(logits_k, target_k)
+        for logits_k, target_k in zip(mtp_logits[:mtp_layers], targets[1:], strict=True)
+    ]
+    mtp_loss = torch.stack(mtp_losses).mean()
+    return next_token_loss + mtp_loss_weight * mtp_loss, next_token_loss, mtp_loss
 
 
 def evaluate(

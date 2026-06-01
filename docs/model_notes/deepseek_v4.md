@@ -206,11 +206,17 @@ stream mixing”的接口和实验开关。正式配置设置 `residual_streams 
 
 ## MTP 状态
 
-配置和模型里已经有 `mtp_layers = 1`，实现中存在 `mtp_heads`。当前 `forward()`
-仍只返回主 next-token logits，训练 loss 当前也是普通 cross entropy。
+配置和模型里已经有 `mtp_layers = 1`，实现中存在 `mtp_heads`。普通 `forward()`
+仍只返回主 next-token logits，以保持 generation/benchmark 接口简单。
 
-因此当前状态是：MTP/next-n prediction 接口已经保留，但 auxiliary loss 尚未接入
-训练循环。
+训练脚本会在 `mtp_loss_weight > 0` 时调用 `forward_with_mtp()`，额外预测
+`token_{t+2}`，并使用：
+
+```text
+loss = next_token_loss + mtp_loss_weight * mtp_loss
+```
+
+当前实现是轻量 auxiliary MTP head，不是 DeepSeek 官方完整 MTP module。
 
 ## 复现边界
 

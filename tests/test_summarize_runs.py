@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from scripts.summarize_runs import summarize_runs
@@ -25,7 +26,15 @@ def test_summarize_runs_reads_metrics_and_checkpoints(tmp_path: Path):
         {"type": "train", "step": 1, "loss": 4.0, "tokens": 64, "tokens_per_second": 1000.0},
         {"type": "eval", "step": 1, "val_loss": 4.2},
         {"type": "resume", "step": 1, "checkpoint": "latest.pt"},
-        {"type": "train", "step": 2, "loss": 3.5, "tokens": 128, "tokens_per_second": 1100.0},
+        {
+            "type": "train",
+            "step": 2,
+            "loss": 3.5,
+            "next_token_loss": 3.2,
+            "mtp_loss": 3.0,
+            "tokens": 128,
+            "tokens_per_second": 1100.0,
+        },
         {"type": "eval", "step": 2, "val_loss": 3.9},
     ]
     (run_dir / "metrics.jsonl").write_text(
@@ -48,7 +57,10 @@ def test_summarize_runs_reads_metrics_and_checkpoints(tmp_path: Path):
     assert summary["last_step"] == 2
     assert summary["tokens"] == 128
     assert summary["last_train_loss"] == 3.5
+    assert summary["last_next_token_loss"] == 3.2
+    assert summary["last_mtp_loss"] == 3.0
     assert summary["last_val_loss"] == 3.9
+    assert summary["val_ppl"] == math.exp(3.9)
     assert summary["resumes"] == 1
     assert summary["checkpoint_count"] == 2
     assert summary["latest_checkpoint"] is not None

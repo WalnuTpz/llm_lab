@@ -148,11 +148,17 @@ full attention 只出现在每 4 层的最后一层，用来保留周期性的�
 
 ## MTP 状态
 
-配置和模型里已经有 `mtp_layers = 1`，实现中存在 `mtp_heads`。当前 `forward()`
-仍只返回主 next-token logits，训练 loss 当前也是普通 cross entropy。
+配置和模型里已经有 `mtp_layers = 1`，实现中存在 `mtp_heads`。普通 `forward()`
+仍只返回主 next-token logits，以保持 generation/benchmark 接口简单。
 
-因此当前状态是：MTP 作为架构接口已经保留，但 auxiliary MTP loss 尚未接入训练
-循环。后续如果要更接近真实 Qwen3.6，需要把 `mtp_heads` 的输出纳入训练目标。
+训练脚本会在 `mtp_loss_weight > 0` 时调用 `forward_with_mtp()`，额外预测
+`token_{t+2}`，并使用：
+
+```text
+loss = next_token_loss + mtp_loss_weight * mtp_loss
+```
+
+当前实现是轻量 auxiliary MTP head，不是官方完整 MTP module。
 
 ## 复现边界
 
@@ -172,7 +178,7 @@ full attention 只出现在每 4 层的最后一层，用来保留周期性的�
 - 不复现官方 27B hidden size、64 层、head layout 和长上下文配置。
 - 不复现 YaRN 扩展、训练数据、post-training 或部署 kernel。
 - DeltaNet 是教学/实验用纯 PyTorch mixer，不是官方 kernel。
-- MTP auxiliary loss 还没有接入训练循环。
+- MTP 是轻量 auxiliary head，不复现官方完整 MTP block。
 
 ## 实验价值
 

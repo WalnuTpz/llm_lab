@@ -107,6 +107,89 @@ def test_train_cli_real_data_checkpoint_and_resume(tmp_path: Path):
     assert any(record["type"] == "eval" and record["step"] == 3 for record in records)
 
 
+def test_train_cli_records_mtp_loss_components(tmp_path: Path):
+    run_dir = tmp_path / "runs"
+    config_path = tmp_path / "qwen_mtp_smoke.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "name": "qwen_mtp_smoke",
+                "model": {
+                    "architecture": "qwen36",
+                    "vocab_size": 64,
+                    "context_length": 8,
+                    "d_model": 32,
+                    "num_layers": 4,
+                    "num_heads": 4,
+                    "num_kv_heads": 2,
+                    "d_ff": 64,
+                    "tie_embeddings": True,
+                    "norm_type": "rmsnorm",
+                    "activation": "swiglu",
+                    "ffn_type": "swiglu",
+                    "attention_type": "hybrid",
+                    "position_encoding": "rope",
+                    "partial_rotary_factor": 0.5,
+                    "full_attention_interval": 4,
+                    "mtp_layers": 1,
+                    "mtp_loss_weight": 0.1,
+                },
+                "training": {
+                    "batch_size": 2,
+                    "max_iters": 1,
+                    "learning_rate": 0.001,
+                    "min_learning_rate": 0.0001,
+                    "warmup_iters": 1,
+                    "cosine_cycle_iters": 1,
+                    "dtype": "float32",
+                    "device": "cpu",
+                    "seed": 123,
+                },
+                "runtime": {
+                    "log_interval": 1,
+                    "eval_interval": 1,
+                    "eval_batches": 1,
+                    "checkpoint_interval": 1,
+                    "checkpoint_dir": str(tmp_path / "checkpoints"),
+                    "run_dir": str(run_dir),
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/train.py",
+            "--config",
+            str(config_path),
+            "--device",
+            "cpu",
+            "--smoke",
+            "--max-iters",
+            "1",
+            "--no-checkpoint",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    records = [
+        json.loads(line)
+        for line in (run_dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    run_record = next(record for record in records if record["type"] == "run")
+    train_record = next(record for record in records if record["type"] == "train")
+    assert run_record["mtp_layers"] == 1
+    assert run_record["mtp_loss_weight"] == 0.1
+    assert train_record["next_token_loss"] > 0
+    assert train_record["mtp_loss"] > 0
+    expected_loss = train_record["next_token_loss"] + 0.1 * train_record["mtp_loss"]
+    assert abs(train_record["loss"] - expected_loss) < 1e-6
+
+
 def test_max_iters_override_scales_default_lr_schedule():
     assert _effective_lr_schedule(
         config_max_iters=1000,

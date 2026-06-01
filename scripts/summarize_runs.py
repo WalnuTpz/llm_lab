@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,7 @@ def summarize_runs(runs_root: Path, *, checkpoints_root: Path | None = None) -> 
         resume_records = [record for record in records if record.get("type") == "resume"]
         last_train = train_records[-1] if train_records else {}
         last_eval = eval_records[-1] if eval_records else {}
+        last_val_loss = last_eval.get("val_loss")
         architecture = run_record.get("architecture") or metrics_path.parent.name
         checkpoint_info = _checkpoint_info(architecture, checkpoints_root)
         summaries.append(
@@ -49,7 +51,10 @@ def summarize_runs(runs_root: Path, *, checkpoints_root: Path | None = None) -> 
                 "grad_accum_steps": run_record.get("grad_accum_steps"),
                 "last_step": last_train.get("step"),
                 "last_train_loss": last_train.get("loss"),
-                "last_val_loss": last_eval.get("val_loss"),
+                "last_next_token_loss": last_train.get("next_token_loss"),
+                "last_mtp_loss": last_train.get("mtp_loss"),
+                "last_val_loss": last_val_loss,
+                "val_ppl": _perplexity(last_val_loss),
                 "tokens": last_train.get("tokens"),
                 "tokens_per_second": last_train.get("tokens_per_second"),
                 "resumes": len(resume_records),
@@ -57,6 +62,12 @@ def summarize_runs(runs_root: Path, *, checkpoints_root: Path | None = None) -> 
             }
         )
     return summaries
+
+
+def _perplexity(loss: object) -> float | None:
+    if not isinstance(loss, int | float):
+        return None
+    return math.exp(float(loss))
 
 
 def _read_metrics(path: Path) -> list[dict[str, Any]]:
@@ -95,7 +106,10 @@ def _print_table(summaries: list[dict[str, Any]]) -> None:
         "last_step",
         "tokens",
         "last_train_loss",
+        "last_next_token_loss",
+        "last_mtp_loss",
         "last_val_loss",
+        "val_ppl",
         "tokens_per_second",
         "checkpoint_count",
     ]
